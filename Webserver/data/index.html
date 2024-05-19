@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Temperature Monitor</title>
+  <script>
+    function fetchTemperature() {
+      fetch("/temperature")
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById("currentTemperature").innerText = "Current Temperature: " + data + " °C";
+      });
+    }
+
+    function fetchHistory() {
+      fetch("/history")
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById("history").innerHTML = data;
+      });
+    }
+    
+    setInterval(fetchTemperature, 60000); // Update temperature every minute
+  </script>
+</head>
+<body onload="fetchTemperature(); fetchHistory();">
+  <h1>Temperature Monitor</h1>
+  <p id="currentTemperature"></p>
+  <h2>Temperature History</h2>
+  <div id="history"></div>
+</body>
+</html>
