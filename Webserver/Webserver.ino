@@ -2,6 +2,7 @@
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 #include <HTTPClient.h>
+#include <time.h>
 
 const char* ssid = "Personal-5B3-2.4GHz"; // Reemplaza con tu SSID
 const char* password = "9114DEA5B3"; // Reemplaza con tu contraseña
@@ -11,6 +12,7 @@ const char* telegramChatId = "924578095";  // Reemplaza con tu ID de chat de Tel
 AsyncWebServer server(80);
 
 String temperatureHistory = "";
+String humidityHistory = "";
 
 void sendTelegramMessage(String message) {
   HTTPClient http;
@@ -30,6 +32,17 @@ void sendTelegramMessage(String message) {
     Serial.println("Error on sending POST: " + String(http.errorToString(httpCode).c_str()));
   }
   http.end();
+}
+
+String getTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return "N/A";
+  }
+  char timeStringBuff[50];
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(timeStringBuff);
 }
 
 void setup() {
@@ -53,6 +66,16 @@ void setup() {
     return;
   }
 
+  // Configuración del NTP
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  Serial.println("Waiting for NTP time sync...");
+  while (!time(nullptr)) {
+    Serial.print(".");
+    delay(1000);
+  }
+  Serial.println("");
+  Serial.println("Time synchronized");
+
   // Configurar servidor web
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", "text/html");
@@ -61,15 +84,26 @@ void setup() {
   server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
     // Simular temperatura
     float simulatedTemperature = random(150, 250) / 10.0;
+    float simulatedHumidity = random(150, 250) / 10.0;
+    String timeStr = getTime();
+
     if (simulatedTemperature > 20.0) {
       sendTelegramMessage("Alerta! La temperatura ha superado los 20 grados: " + String(simulatedTemperature) + " °C");
     }
-    temperatureHistory += String(simulatedTemperature) + "<br>";
-    request->send(200, "text/plain", String(simulatedTemperature));
+
+    String json = "{\"temperature\": " + String(simulatedTemperature) + ", \"humidity\": " + String(simulatedHumidity) + "}";
+    temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
+    humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
+
+    request->send(200, "application/json", json);
   });
 
-  server.on("/history", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/temperatureHistory", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", temperatureHistory);
+  });
+
+  server.on("/humidityHistory", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", humidityHistory);
   });
 
   server.begin();
@@ -78,9 +112,15 @@ void setup() {
 void loop() {
   // Simular temperatura
   float simulatedTemperature = random(150, 250) / 10.0;
+  float simulatedHumidity = random(150, 250) / 10.0;
+  String timeStr = getTime(); 
+
   if (simulatedTemperature > 20.0) {
     sendTelegramMessage("Alerta! La temperatura ha superado los 20 grados: " + String(simulatedTemperature) + " °C");
   }
-  temperatureHistory += String(simulatedTemperature) + "<br>";
+
+  temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
+  humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
+
   delay(300000); // Espera 5 minutos
 }

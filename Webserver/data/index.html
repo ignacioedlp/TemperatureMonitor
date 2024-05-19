@@ -1,31 +1,137 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Temperature Monitor</title>
+  <title>Temperature and Humidity Monitor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    .container {
+      width: 80%;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      margin-top: 50px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    #currentTemperature, #currentHumidity {
+      font-size: 2em;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .history-container {
+      display: flex;
+      justify-content: space-between;
+    }
+    .history-section {
+      flex: 1;
+      margin: 0 10px;
+    }
+    h2 {
+      border-bottom: 2px solid #333;
+      padding-bottom: 5px;
+    }
+    #temperatureHistory, #humidityHistory {
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: #fafafa;
+      margin-bottom: 20px;
+    }
+    .history-entry {
+      padding: 5px;
+      border-bottom: 1px solid #ddd;
+    }
+    .history-entry:last-child {
+      border-bottom: none;
+    }
+    #shutdownButton {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 20px 0;
+      font-size: 1.5em;
+      text-align: center;
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #shutdownButton:hover {
+      background-color: #ff1a1a;
+    }
+  </style>
   <script>
     function fetchTemperature() {
       fetch("/temperature")
-      .then(response => response.text())
+      .then(response => response.json())
       .then(data => {
-        document.getElementById("currentTemperature").innerText = "Current Temperature: " + data + " °C";
+        document.getElementById("currentTemperature").innerText = "Current Temperature: " + data.temperature + " °C";
+        document.getElementById("currentHumidity").innerText = "Current Humidity: " + data.humidity + " %";
       });
     }
 
     function fetchHistory() {
-      fetch("/history")
+      fetch("/temperatureHistory")
       .then(response => response.text())
       .then(data => {
-        document.getElementById("history").innerHTML = data;
+        document.getElementById("temperatureHistory").innerHTML = data.split('<br>').map(entry => {
+          return `<div class="history-entry">${entry}</div>`;
+        }).join('');
+      });
+      
+      fetch("/humidityHistory")
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById("humidityHistory").innerHTML = data.split('<br>').map(entry => {
+          return `<div class="history-entry">${entry}</div>`;
+        }).join('');
+      });
+    }
+
+    function shutdown() {
+      fetch("/shutdown")
+      .then(response => {
+        if (response.ok) {
+          alert("ESP32 is shutting down");
+        } else {
+          alert("Failed to shut down ESP32");
+        }
       });
     }
     
     setInterval(fetchTemperature, 60000); // Update temperature every minute
+
   </script>
 </head>
 <body onload="fetchTemperature(); fetchHistory();">
-  <h1>Temperature Monitor</h1>
-  <p id="currentTemperature"></p>
-  <h2>Temperature History</h2>
-  <div id="history"></div>
+  <div class="container">
+    <h1>Temperature and Humidity Monitor</h1>
+    <p id="currentTemperature"></p>
+    <p id="currentHumidity"></p>
+    <div class="history-container">
+      <div class="history-section">
+        <h2>Temperature History</h2>
+        <div id="temperatureHistory"></div>
+      </div>
+      <div class="history-section">
+        <h2>Humidity History</h2>
+        <div id="humidityHistory"></div>
+      </div>
+    </div>
+    <button id="shutdownButton" onclick="shutdown()">Shutdown ESP32</button>
+  </div>
 </body>
 </html>
