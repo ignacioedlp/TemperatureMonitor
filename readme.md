@@ -15,9 +15,9 @@ La idea es crear un sistema que pueda estar registrando informacion cada 5 minut
 
 ## El ESP32:
 - Registrara cada 5 minutos la temperatura y humedad.
-- Actuara de API para la visual de historial y temperatura actual.
+- Actuara de API para la visual de humedad y temperatura actual.
 - Enviara a la nube por protocolo MQTT donde se tomara el mensaje y por medio de Lambda se guardara el dato en DynamoDB donde se podra utilizar a posteori para crear un dashboard mas funcional.
-- Enviara una alerta a el usuario por medio de un bot de telegram, alertando de un aumento.
+- Enviara una alerta a el usuario por medio de un bot de telegram, si la temperatura aumento mas de un 5% o si la humedad aumento un 8% a diferencia de antes.
 
 ## Librerias y Tools usadas
 - Arduino Esp32fs plugin master (Para subir archivos al ESP32)

@@ -1,137 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Temperature and Humidity Monitor</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f9;
-      color: #333;
-    }
-    .container {
-      width: 80%;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-      margin-top: 50px;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    #currentTemperature, #currentHumidity {
-      font-size: 2em;
-      text-align: center;
-      margin: 20px 0;
-    }
-    .history-container {
-      display: flex;
-      justify-content: space-between;
-    }
-    .history-section {
-      flex: 1;
-      margin: 0 10px;
-    }
-    h2 {
-      border-bottom: 2px solid #333;
-      padding-bottom: 5px;
-    }
-    #temperatureHistory, #humidityHistory {
-      max-height: 300px;
-      overflow-y: auto;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background-color: #fafafa;
-      margin-bottom: 20px;
-    }
-    .history-entry {
-      padding: 5px;
-      border-bottom: 1px solid #ddd;
-    }
-    .history-entry:last-child {
-      border-bottom: none;
-    }
-    #shutdownButton {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      margin: 20px 0;
-      font-size: 1.5em;
-      text-align: center;
-      background-color: #ff4d4d;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    #shutdownButton:hover {
-      background-color: #ff1a1a;
-    }
-  </style>
-  <script>
-    function fetchTemperature() {
-      fetch("/temperature")
-      .then(response => response.json())
-      .then(data => {
-        document.getElementById("currentTemperature").innerText = "Current Temperature: " + data.temperature + " °C";
-        document.getElementById("currentHumidity").innerText = "Current Humidity: " + data.humidity + " %";
-      });
-    }
-
-    function fetchHistory() {
-      fetch("/temperatureHistory")
-      .then(response => response.text())
-      .then(data => {
-        document.getElementById("temperatureHistory").innerHTML = data.split('<br>').map(entry => {
-          return `<div class="history-entry">${entry}</div>`;
-        }).join('');
-      });
-      
-      fetch("/humidityHistory")
-      .then(response => response.text())
-      .then(data => {
-        document.getElementById("humidityHistory").innerHTML = data.split('<br>').map(entry => {
-          return `<div class="history-entry">${entry}</div>`;
-        }).join('');
-      });
-    }
-
-    function shutdown() {
-      fetch("/shutdown")
-      .then(response => {
-        if (response.ok) {
-          alert("ESP32 is shutting down");
-        } else {
-          alert("Failed to shut down ESP32");
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Sensor Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f8f8f8;
         }
-      });
-    }
-    
-    setInterval(fetchTemperature, 60000); // Update temperature every minute
-
-  </script>
+        .card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+            padding: 20px;
+            text-align: center;
+            width: 300px;
+        }
+        .value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .label {
+            font-size: 18px;
+            color: #555;
+        }
+        .difference {
+            font-size: 16px;
+        }
+        .positive {
+            color: green;
+        }
+        .negative {
+            color: red;
+        }
+    </style>
 </head>
-<body onload="fetchTemperature(); fetchHistory();">
-  <div class="container">
-    <h1>Temperature and Humidity Monitor</h1>
-    <p id="currentTemperature"></p>
-    <p id="currentHumidity"></p>
-    <div class="history-container">
-      <div class="history-section">
-        <h2>Temperature History</h2>
-        <div id="temperatureHistory"></div>
-      </div>
-      <div class="history-section">
-        <h2>Humidity History</h2>
-        <div id="humidityHistory"></div>
-      </div>
+<body>
+    <div class="card">
+        <div class="value" id="humidity">--%</div>
+        <div class="label">Humidity</div>
+        <div class="difference" id="humidity-diff">--%</div>
     </div>
-    <button id="shutdownButton" onclick="shutdown()">Shutdown ESP32</button>
-  </div>
+    <div class="card">
+        <div class="value" id="temperature">--°C</div>
+        <div class="label">Temperature</div>
+        <div class="difference" id="temperature-diff">--°C</div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            try {
+                const response = await fetch('/temperature');
+                const data = await response.json();
+                
+                document.getElementById('humidity').innerText = `${data.currentHumidity}%`;
+                document.getElementById('temperature').innerText = `${data.currentTemperature}°C`;
+
+                const humidityDiff = data.humidityDifference.toFixed(2);
+                const temperatureDiff = data.temperatureDifference.toFixed(2);
+
+                document.getElementById('humidity-diff').innerText = `${humidityDiff}%`;
+                document.getElementById('humidity-diff').className = humidityDiff >= 0 ? 'difference positive' : 'difference negative';
+
+                document.getElementById('temperature-diff').innerText = `${temperatureDiff}°C`;
+                document.getElementById('temperature-diff').className = temperatureDiff >= 0 ? 'difference positive' : 'difference negative';
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        setInterval(fetchData, 5000);
+        fetchData();
+    </script>
 </body>
 </html>

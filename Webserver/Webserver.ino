@@ -39,8 +39,10 @@ int value = 0;
 byte mac[6];
 char mac_Id[18];
 int count = 1;
-String temperatureHistory = "";
-String humidityHistory = "";
+float currentTemperature = 0.0;
+float previousTemperature = 0.0;
+float currentHumidity = 0.0;
+float previousHumidity = 0.0;
 
 //********************************
 
@@ -266,10 +268,17 @@ void setup() {
       sendTelegramMessage("Alerta! La temperatura ha superado los 20 grados: " + String(simulatedTemperature) + " °C");
     }
 
-    String json = "{\"temperature\": " + String(simulatedTemperature) + ", \"humidity\": " + String(simulatedHumidity) + "}";
-    temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
-    humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
+    previousTemperature = currentTemperature;
+    currentTemperature = simulatedTemperature;
+    previousHumidity = currentHumidity;
+    currentHumidity = simulatedHumidity;
 
+    float temperatureDifference = currentTemperature - previousTemperature;
+    float humidityDifference = ((currentHumidity - previousHumidity) / previousHumidity) * 100;
+
+    String json = "{\"currentTemperature\": " + String(currentTemperature) + ", \"previousTemperature\": " + String(previousTemperature) + ", \"temperatureDifference\": " + String(temperatureDifference) +
+                  ", \"currentHumidity\": " + String(currentHumidity) + ", \"previousHumidity\": " + String(previousHumidity) + ", \"humidityDifference\": " + String(humidityDifference) + "}";
+    
     request->send(200, "application/json", json);
   });
 
@@ -296,20 +305,30 @@ void loop() {
   }
   client.loop();
 
-  // Enviar mensaje a Telegram si la temperatura supera los 20 grados
-  if (simulatedTemperature > 20.0) {
-    sendTelegramMessage("Alerta! La temperatura ha superado los 20 grados: " + String(simulatedTemperature) + " °C");
-  }
-
-
   // Publicar mensaje cada 5 minutos
   long now = millis();
   if (now - lastMsg > 300000) {
     lastMsg = now;
     //=============================================================================================
+    previousTemperature = currentTemperature;
+    currentTemperature = simulatedTemperature;
+    previousHumidity = currentHumidity;
+    currentHumidity = simulatedHumidity;
+
+    float temperatureDifference = currentTemperature - previousTemperature;
+    float humidityDifference = ((currentHumidity - previousHumidity) / previousHumidity) * 100;
+
+    if (abs(temperatureDifference) >= 10.0) {
+      sendTelegramMessage("Alerta! La temperatura ha cambiado en 10 grados o más: " + String(temperatureDifference) + " °C");
+    }
+    if (abs(humidityDifference) >= 5.0) {
+      sendTelegramMessage("Alerta! La humedad ha cambiado en un 5% o más: " + String(humidityDifference) + " %");
+    }
+
     String macIdStr = mac_Id;
-    String Temprature = String(simulatedTemperature);
-    String Humidity = String(simulatedHumidity);
+    String Temprature = String(currentTemperature);
+    String Humidity = String(currentHumidity);
+
     snprintf (msg, BUFFER_LEN, "{\"timestamp\" : \"%s\", \"mac_id\" : \"%s\", \"temperature\" : %s, \"humidity\" : %s}", timeStr.c_str(), macIdStr.c_str(), Temprature.c_str(), Humidity.c_str());
     Serial.print("Publicando mensaje: ");
     Serial.print(count);
@@ -320,8 +339,7 @@ void loop() {
   }
 
   // Guardar historial de temperatura y humedad (Podriamos quitarlo si no lo necesitamos)
-  temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
-  humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
+  //temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
+  //humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
 
-  delay(300000); // Espera 5 minutos
 }
