@@ -264,10 +264,6 @@ void setup() {
     float simulatedHumidity = random(150, 250) / 10.0;
     String timeStr = getTime();
 
-    if (simulatedTemperature > 20.0) {
-      sendTelegramMessage("Alerta! La temperatura ha superado los 20 grados: " + String(simulatedTemperature) + " °C");
-    }
-
     previousTemperature = currentTemperature;
     currentTemperature = simulatedTemperature;
     previousHumidity = currentHumidity;
@@ -282,13 +278,13 @@ void setup() {
     request->send(200, "application/json", json);
   });
 
-  server.on("/temperatureHistory", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/html", temperatureHistory);
-  });
-
-  server.on("/humidityHistory", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/html", humidityHistory);
-  });
+  //  server.on("/temperatureHistory", HTTP_GET, [](AsyncWebServerRequest *request){
+  //    request->send(200, "text/html", temperatureHistory);
+  //  });
+  //
+  //  server.on("/humidityHistory", HTTP_GET, [](AsyncWebServerRequest *request){
+  //    request->send(200, "text/html", humidityHistory);
+  //  });
 
   server.begin();
 }
