@@ -1,11 +1,11 @@
+#include <SPIFFS.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include <SPIFFS.h>
-#include <HTTPClient.h>
+#include <UniversalTelegramBot.h>
 #include <time.h>
 #include <PubSubClient.h>
-#include <Wire.h>
 #include <WiFiClientSecure.h>
+#include <DHT.h>
 
 //WIFI
 const char* ssid = "Personal-5B3-2.4GHz"; // Con tu SSID
@@ -16,12 +16,21 @@ const char* telegramBotToken = "7126983538:AAEo66DMT49mDPm-Aa1_IMp3G8E_1w5cdGA";
 const char* telegramChatId = "924578095";  //ID de chat de Telegram
 
 //MQTT
-const char* mqtt_server = "a1v7zemm8o6cz2-ats.iot.sa-east-1.amazonaws.com";
-const int mqtt_port = 8883;
+//const char* mqtt_server = "a1v7zemm8o6cz2-ats.iot.sa-east-1.amazonaws.com";
+//const int mqtt_port = 8883;
+
+//DHT
+#define DHTPIN 21
+#define DHTTYPE DHT11
+DHT dht(DHTPIN,DHTTYPE);
 
 //Configuracion de Cliente MQTT
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
+
+//Configuracion BOT Telegram
+WiFiClientSecure TelegramClient;
+UniversalTelegramBot bot(telegramBotToken, TelegramClient);
 
 //Certificates
 String Read_rootca;
@@ -38,34 +47,19 @@ char msg[BUFFER_LEN];
 int value = 0;
 byte mac[6];
 char mac_Id[18];
-int count = 1;
+
+//Api
+float currentTemperatureApi = 0.0;
+float previousTemperatureApi = 0.0;
+float currentHumidityApi = 0.0;
+float previousHumidityApi = 0.0;
+//Historic
 float currentTemperature = 0.0;
 float previousTemperature = 0.0;
 float currentHumidity = 0.0;
 float previousHumidity = 0.0;
 
 //********************************
-
-// Función para enviar mensajes a Telegram
-void sendTelegramMessage(String message) {
-  HTTPClient http;
-  String url = "https://api.telegram.org/bot";
-  url += telegramBotToken;
-  url += "/sendMessage?chat_id=";
-  url += telegramChatId;
-  url += "&text=";
-  url += message;
-  
-  http.begin(url);
-  int httpCode = http.GET();
-  if (httpCode > 0) {
-    String payload = http.getString();
-    Serial.println(payload);
-  } else {
-    Serial.println("Error on sending POST: " + String(http.errorToString(httpCode).c_str()));
-  }
-  http.end();
-}
 
 // Función para obtener la hora actual
 String getTime() {
@@ -180,6 +174,9 @@ void setup() {
   // Iniciar puerto serie
   Serial.begin(115200);
 
+  // Iniciar DHT
+  dht.begin();
+  
   // Conexión a red WiFi
   setupWifi();
 
@@ -190,45 +187,45 @@ void setup() {
   }
 
   // Leer certificados
-  setupCertificates();
+  //setupCertificates();
 
   //=====================================================
 
   char* pRead_rootca;
-  pRead_rootca = (char *)malloc(sizeof(char) * (Read_rootca.length() + 1));
-  strcpy(pRead_rootca, Read_rootca.c_str());
+  //pRead_rootca = (char *)malloc(sizeof(char) * (Read_rootca.length() + 1));
+  //strcpy(pRead_rootca, Read_rootca.c_str());
 
   char* pRead_cert;
-  pRead_cert = (char *)malloc(sizeof(char) * (Read_cert.length() + 1));
-  strcpy(pRead_cert, Read_cert.c_str());
+  //pRead_cert = (char *)malloc(sizeof(char) * (Read_cert.length() + 1));
+  //strcpy(pRead_cert, Read_cert.c_str());
 
   char* pRead_privatekey;
-  pRead_privatekey = (char *)malloc(sizeof(char) * (Read_privatekey.length() + 1));
-  strcpy(pRead_privatekey, Read_privatekey.c_str());
+  //pRead_privatekey = (char *)malloc(sizeof(char) * (Read_privatekey.length() + 1));
+  //strcpy(pRead_privatekey, Read_privatekey.c_str());
 
   Serial.println("================================================================================================");
   Serial.println("Certificados que pasan adjuntan al espClient");
   Serial.println();
   Serial.println("Root CA:");
-  Serial.write(pRead_rootca);
+  //Serial.write(pRead_rootca);
   Serial.println("================================================================================================");
   Serial.println();
   Serial.println("Cert:");
-  Serial.write(pRead_cert);
+  //Serial.write(pRead_cert);
   Serial.println("================================================================================================");
   Serial.println();
   Serial.println("privateKey:");
-  Serial.write(pRead_privatekey);
+  //Serial.write(pRead_privatekey);
   Serial.println("================================================================================================");
 
 
   // Configurar cliente MQTT con certificados
-  espClient.setCACert(pRead_rootca);
-  espClient.setCertificate(pRead_cert);
-  espClient.setPrivateKey(pRead_privatekey);
+  //espClient.setCACert(pRead_rootca);
+  //espClient.setCertificate(pRead_cert);
+  //espClient.setPrivateKey(pRead_privatekey);
 
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
+  //client.setServer(mqtt_server, mqtt_port);
+  //client.setCallback(callback);
 
   //******************************************
 
@@ -251,6 +248,10 @@ void setup() {
   Serial.println("");
   Serial.println("Time synchronized");
 
+  //Telegram
+  TelegramClient.setInsecure(); // No verificación SSL
+  bot.sendMessage(telegramChatId, "Bot iniciado", "");
+
   //****************************************
 
   // Configurar servidor web
@@ -259,83 +260,54 @@ void setup() {
   });
 
   server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    // Simular temperatura
-    float simulatedTemperature = random(150, 250) / 10.0;
-    float simulatedHumidity = random(150, 250) / 10.0;
-    String timeStr = getTime();
-
-    previousTemperature = currentTemperature;
-    currentTemperature = simulatedTemperature;
-    previousHumidity = currentHumidity;
-    currentHumidity = simulatedHumidity;
-
-    float temperatureDifference = currentTemperature - previousTemperature;
-    float humidityDifference = ((currentHumidity - previousHumidity) / previousHumidity) * 100;
-
-    String json = "{\"currentTemperature\": " + String(currentTemperature) + ", \"previousTemperature\": " + String(previousTemperature) + ", \"temperatureDifference\": " + String(temperatureDifference) +
-                  ", \"currentHumidity\": " + String(currentHumidity) + ", \"previousHumidity\": " + String(previousHumidity) + ", \"humidityDifference\": " + String(humidityDifference) + "}";
-    
+    previousTemperatureApi = currentTemperatureApi;
+    currentTemperatureApi = dht.readTemperature();
+    previousHumidityApi = currentHumidityApi;
+    currentHumidityApi = dht.readHumidity();
+  Serial.println("prevTemp: " + String(previousTemperatureApi));
+  Serial.println("prevHumid: " + String(previousHumidityApi));
+    String json = "{\"currentTemperature\": " + String(currentTemperatureApi) + ", \"temperatureDifference\": " + String(currentTemperatureApi - previousTemperatureApi) +
+                  ", \"currentHumidity\": " + String(currentHumidityApi) + ", \"humidityDifference\": " + String(((currentHumidityApi - previousHumidityApi) / previousHumidityApi) * 100) + "}";
+  Serial.println(json);
     request->send(200, "application/json", json);
   });
-
-  //  server.on("/temperatureHistory", HTTP_GET, [](AsyncWebServerRequest *request){
-  //    request->send(200, "text/html", temperatureHistory);
-  //  });
-  //
-  //  server.on("/humidityHistory", HTTP_GET, [](AsyncWebServerRequest *request){
-  //    request->send(200, "text/html", humidityHistory);
-  //  });
 
   server.begin();
 }
 
 void loop() {
-  // Simular temperatura
-  float simulatedTemperature = random(150, 250) / 10.0;
-  float simulatedHumidity = random(150, 250) / 10.0;
   String timeStr = getTime(); 
 
   // Conectar al broker MQTT si no está conectado
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
+  //if (!client.connected()) {
+    //reconnect();
+  //}
+  //client.loop();
+  previousTemperature = currentTemperature;
+  currentTemperature = dht.readTemperature();
+  previousHumidity = currentHumidity;
+  currentHumidity = dht.readHumidity();
 
+  if (abs(currentTemperature - previousTemperature) >= 5.0 && previousTemperature != 0.0) {
+    bot.sendMessage(telegramChatId, "Alerta! La temperatura ha cambiado en: " + String(currentTemperature - previousTemperature) + " °C", "");
+  }
+  if (abs(((currentHumidity - previousHumidity) / previousHumidity) * 100) >= 20.0 && previousTemperature != 0.0) {
+    bot.sendMessage(telegramChatId, "Alerta! La humedad ha cambiado en un: " + String(((currentHumidity - previousHumidity) / previousHumidity) * 100) + " %", "");
+  }
   // Publicar mensaje cada 5 minutos
   long now = millis();
   if (now - lastMsg > 300000) {
     lastMsg = now;
     //=============================================================================================
-    previousTemperature = currentTemperature;
-    currentTemperature = simulatedTemperature;
-    previousHumidity = currentHumidity;
-    currentHumidity = simulatedHumidity;
-
-    float temperatureDifference = currentTemperature - previousTemperature;
-    float humidityDifference = ((currentHumidity - previousHumidity) / previousHumidity) * 100;
-
-    if (abs(temperatureDifference) >= 10.0) {
-      sendTelegramMessage("Alerta! La temperatura ha cambiado en 10 grados o más: " + String(temperatureDifference) + " °C");
-    }
-    if (abs(humidityDifference) >= 5.0) {
-      sendTelegramMessage("Alerta! La humedad ha cambiado en un 5% o más: " + String(humidityDifference) + " %");
-    }
 
     String macIdStr = mac_Id;
     String Temprature = String(currentTemperature);
     String Humidity = String(currentHumidity);
 
     snprintf (msg, BUFFER_LEN, "{\"timestamp\" : \"%s\", \"mac_id\" : \"%s\", \"temperature\" : %s, \"humidity\" : %s}", timeStr.c_str(), macIdStr.c_str(), Temprature.c_str(), Humidity.c_str());
-    Serial.print("Publicando mensaje: ");
-    Serial.print(count);
     Serial.println(msg);
-    client.publish("sensor", msg);
-    count = count + 1;
+    //client.publish("sensor", msg);
     //================================================================================================
   }
-
-  // Guardar historial de temperatura y humedad (Podriamos quitarlo si no lo necesitamos)
-  //temperatureHistory += timeStr + " - " + String(simulatedTemperature) + " °C<br>";
-  //humidityHistory += timeStr + " - " + String(simulatedHumidity) + " %<br>";
 
 }
