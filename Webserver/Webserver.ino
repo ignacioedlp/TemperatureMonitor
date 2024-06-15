@@ -8,16 +8,16 @@
 #include <DHT.h>
 
 //WIFI
-const char* ssid = "Personal-5B3-2.4GHz"; // Con tu SSID
-const char* password = "9114DEA5B3"; // Tu contraseña
+const char* ssid = ""; // Con tu SSID
+const char* password = ""; // Tu contraseña
 
 //Telegram
 const char* telegramBotToken = "7126983538:AAEo66DMT49mDPm-Aa1_IMp3G8E_1w5cdGA";  // Token de bot de Telegram
 const char* telegramChatId = "924578095";  //ID de chat de Telegram
 
 //MQTT
-//const char* mqtt_server = "a1v7zemm8o6cz2-ats.iot.sa-east-1.amazonaws.com";
-//const int mqtt_port = 8883;
+const char* mqtt_server = "";
+const int mqtt_port = 8883;
 
 //DHT
 #define DHTPIN 21
@@ -144,7 +144,7 @@ void setupCertificates() {
   }
 
   // Cert leer archivo
-  File file4 = SPIFFS.open("/a41f3-certificate.pem.crt", "r");
+  File file4 = SPIFFS.open("/ec81d-certificate.pem.crt", "r");
   if(!file4){
     Serial.println("No se puedo abrir el archivo para leerlo");
     return;
@@ -157,7 +157,7 @@ void setupCertificates() {
   }
 
   // Private Key leer archivo
-  File file6 = SPIFFS.open("/a41f3-private.pem.key", "r");
+  File file6 = SPIFFS.open("/ec81d-private.pem.key", "r");
   if(!file6){
     Serial.println("No se puedo abrir el archivo para leerlo");
     return;
@@ -187,45 +187,45 @@ void setup() {
   }
 
   // Leer certificados
-  //setupCertificates();
+  setupCertificates();
 
   //=====================================================
 
   char* pRead_rootca;
-  //pRead_rootca = (char *)malloc(sizeof(char) * (Read_rootca.length() + 1));
-  //strcpy(pRead_rootca, Read_rootca.c_str());
+  pRead_rootca = (char *)malloc(sizeof(char) * (Read_rootca.length() + 1));
+  strcpy(pRead_rootca, Read_rootca.c_str());
 
   char* pRead_cert;
-  //pRead_cert = (char *)malloc(sizeof(char) * (Read_cert.length() + 1));
-  //strcpy(pRead_cert, Read_cert.c_str());
+  pRead_cert = (char *)malloc(sizeof(char) * (Read_cert.length() + 1));
+  strcpy(pRead_cert, Read_cert.c_str());
 
   char* pRead_privatekey;
-  //pRead_privatekey = (char *)malloc(sizeof(char) * (Read_privatekey.length() + 1));
-  //strcpy(pRead_privatekey, Read_privatekey.c_str());
+  pRead_privatekey = (char *)malloc(sizeof(char) * (Read_privatekey.length() + 1));
+  strcpy(pRead_privatekey, Read_privatekey.c_str());
 
   Serial.println("================================================================================================");
   Serial.println("Certificados que pasan adjuntan al espClient");
   Serial.println();
   Serial.println("Root CA:");
-  //Serial.write(pRead_rootca);
+  Serial.write(pRead_rootca);
   Serial.println("================================================================================================");
   Serial.println();
   Serial.println("Cert:");
-  //Serial.write(pRead_cert);
+  Serial.write(pRead_cert);
   Serial.println("================================================================================================");
   Serial.println();
   Serial.println("privateKey:");
-  //Serial.write(pRead_privatekey);
+  Serial.write(pRead_privatekey);
   Serial.println("================================================================================================");
 
 
   // Configurar cliente MQTT con certificados
-  //espClient.setCACert(pRead_rootca);
-  //espClient.setCertificate(pRead_cert);
-  //espClient.setPrivateKey(pRead_privatekey);
+  espClient.setCACert(pRead_rootca);
+  espClient.setCertificate(pRead_cert);
+  espClient.setPrivateKey(pRead_privatekey);
 
-  //client.setServer(mqtt_server, mqtt_port);
-  //client.setCallback(callback);
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
 
   //******************************************
 
@@ -279,10 +279,10 @@ void loop() {
   String timeStr = getTime(); 
 
   // Conectar al broker MQTT si no está conectado
-  //if (!client.connected()) {
-    //reconnect();
-  //}
-  //client.loop();
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
   previousTemperature = currentTemperature;
   currentTemperature = dht.readTemperature();
   previousHumidity = currentHumidity;
@@ -296,18 +296,14 @@ void loop() {
   }
   // Publicar mensaje cada 5 minutos
   long now = millis();
-  if (now - lastMsg > 300000) {
+  if (now - lastMsg > 30000) {
     lastMsg = now;
-    //=============================================================================================
-
-    String macIdStr = mac_Id;
     String Temprature = String(currentTemperature);
     String Humidity = String(currentHumidity);
 
-    snprintf (msg, BUFFER_LEN, "{\"timestamp\" : \"%s\", \"mac_id\" : \"%s\", \"temperature\" : %s, \"humidity\" : %s}", timeStr.c_str(), macIdStr.c_str(), Temprature.c_str(), Humidity.c_str());
+    snprintf (msg, BUFFER_LEN, "{\"timestamp\" : \"%s\", \"area\" : \"%s\", \"temperature\" : %s, \"humidity\" : %s}", timeStr.c_str(), "1", Temprature.c_str(), Humidity.c_str());
     Serial.println(msg);
-    //client.publish("sensor", msg);
-    //================================================================================================
+    client.publish("sensor", msg);
   }
 
 }
